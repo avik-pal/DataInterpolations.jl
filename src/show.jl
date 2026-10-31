@@ -1,0 +1,80 @@
+###################### Generic Dispatches ######################
+
+function Base.show(io::IO, mime::MIME"text/plain", interp::AbstractInterpolation)
+    print(io, get_show(interp))
+    header = ["t", get_names(interp.u)...]
+    data = hcat(interp.t, get_data(interp.u))
+    return @static if pkgversion(PrettyTables) >= v"3"
+        pretty_table(io, data; column_labels = header, vertical_crop_mode = :middle)
+    else
+        pretty_table(io, data; header = header, vcrop_mode = :middle)
+    end
+end
+
+function get_show(interp::AbstractInterpolation)
+    return string(nameof(typeof(interp))) * " with $(length(interp.t)) points\n"
+end
+
+function get_data(u::AbstractVector)
+    return u
+end
+
+function get_data(u::AbstractVector{<:AbstractArray})
+    return reduce(hcat, vec.(u))'
+end
+
+function get_data(u::AbstractMatrix)
+    return u'
+end
+
+# Higher-rank stacked arrays (e.g. `AbstractArray{T, 3}`, one matrix per point): flatten
+# the leading (per-point) dimensions into columns, keeping the last dimension as points —
+# same `(npoints, nfeatures)` orientation as the `AbstractMatrix` case above, of which this
+# is a generalization (kept separate since the transpose alone is cheaper for the common
+# 2D case).
+function get_data(u::AbstractArray)
+    return reshape(u, :, size(u, ndims(u)))'
+end
+
+function get_names(u::AbstractVector)
+    return ["u"]
+end
+
+function get_names(u::AbstractVector{<:AbstractArray})
+    return ["u$i" for i in eachindex(first(u))]
+end
+
+function get_names(u::AbstractMatrix)
+    return ["u$i" for i in axes(u, 1)]
+end
+
+function get_names(u::AbstractArray)
+    return ["u$i" for i in 1:(length(u) ÷ size(u, ndims(u)))]
+end
+
+###################### Specific Dispatches ######################
+
+function get_show(interp::QuadraticInterpolation)
+    return string(nameof(typeof(interp))) *
+        " with $(length(interp.t)) points, $(interp.mode) mode\n"
+end
+
+function get_show(interp::LagrangeInterpolation)
+    return string(nameof(typeof(interp))) *
+        " with $(length(interp.t)) points, with order $(interp.n)\n"
+end
+
+function get_show(interp::ConstantInterpolation)
+    return string(nameof(typeof(interp))) *
+        " with $(length(interp.t)) points, in $(interp.dir) direction\n"
+end
+
+function get_show(interp::BSplineInterpolation)
+    return string(nameof(typeof(interp))) *
+        " with $(length(interp.t)) points, with degree $(interp.d)\n"
+end
+
+function get_show(interp::BSplineApprox)
+    return string(nameof(typeof(interp))) *
+        " with $(length(interp.t)) points, with degree $(interp.d), number of control points $(interp.h)\n"
+end

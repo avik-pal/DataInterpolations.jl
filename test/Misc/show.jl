@@ -1,0 +1,83 @@
+using DataInterpolations
+using CurveFit, StableRNGs
+
+t = [1.0, 2.0, 3.0, 4.0, 5.0]
+x = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+@testset "Generic Cases" begin
+    function test_show_line(A)
+        @testset "$(nameof(typeof(A)))" begin
+            @test startswith(
+                sprint(io -> show(io, MIME"text/plain"(), A)),
+                "$(nameof(typeof(A))) with $(length(A.t)) points\n"
+            )
+        end
+    end
+    methods = [
+        LinearInterpolation(x, t),
+        AkimaInterpolation(x, t),
+        QuadraticSpline(x, t),
+        CubicSpline(x, t),
+    ]
+    test_show_line.(methods)
+end
+
+@testset "Specific Cases" begin
+    @testset "QuadraticInterpolation" begin
+        A = QuadraticInterpolation(x, t)
+        @test startswith(
+            sprint(io -> show(io, MIME"text/plain"(), A)),
+            "QuadraticInterpolation with 5 points, Forward mode\n"
+        )
+    end
+    @testset "LagrangeInterpolation" begin
+        A = LagrangeInterpolation(x, t)
+        @test startswith(
+            sprint(io -> show(io, MIME"text/plain"(), A)),
+            "LagrangeInterpolation with 5 points, with order 4\n"
+        )
+    end
+    @testset "ConstantInterpolation" begin
+        A = ConstantInterpolation(x, t)
+        @test startswith(
+            sprint(io -> show(io, MIME"text/plain"(), A)),
+            "ConstantInterpolation with 5 points, in left direction\n"
+        )
+    end
+    @testset "BSplineInterpolation" begin
+        A = BSplineInterpolation(x, t, 3, :Uniform)
+        @test startswith(
+            sprint(io -> show(io, MIME"text/plain"(), A)),
+            "BSplineInterpolation with 5 points, with degree 3\n"
+        )
+    end
+    @testset "BSplineApprox" begin
+        A = BSplineApprox(x, t, 2, 4, :Uniform)
+        @test startswith(
+            sprint(io -> show(io, MIME"text/plain"(), A)),
+            "BSplineApprox with 5 points, with degree 2, number of control points 4\n"
+        )
+    end
+end
+
+@testset "Higher-rank u (AbstractArray{T, 3})" begin
+    f3d(t_) = [sin(t_) cos(t_); 0.0 cos(2t_)]
+    u3d = cat(f3d.(t)...; dims = 3)
+    A = LinearInterpolation(u3d, t)
+    str = sprint(io -> show(io, MIME"text/plain"(), A))
+    @test startswith(str, "LinearInterpolation with 5 points\n")
+    @test all(occursin("u$i", str) for i in 1:4)
+end
+
+@testset "CurveFit" begin
+    rng = StableRNG(12345)
+    model(x, p) = @. p[1] / (1 + exp(x - p[2]))
+    t = range(-10, stop = 10, length = 40)
+    u = model(t, [1.0, 2.0]) + 0.01 * randn(rng, length(t))
+    p0 = [0.5, 0.5]
+    A = Curvefit(u, t, model, p0)
+    @test startswith(
+        sprint(io -> show(io, MIME"text/plain"(), A)),
+        "Curvefit with 40 points.\n"
+    )
+end

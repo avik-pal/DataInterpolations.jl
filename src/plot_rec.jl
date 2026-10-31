@@ -2,250 +2,51 @@
 #                                 Type recipes                                 #
 ################################################################################
 
+# `A.(t)` returns a plain `Vector` for scalar-valued interpolations (e.g. `Number` or
+# `String` data) — nothing to reshape. For vector/array-valued interpolations it returns
+# one array per time point (`Vector{<:AbstractArray}`), regardless of whether `A.u` itself
+# is stored as a `Matrix`, a `Vector` of `Vector`s, or a higher-rank `Array` — but Plots
+# needs a single `(nt, ndim)` matrix: an x vector of length `nt` paired with a y matrix
+# with `nt` rows, one column per output series. Flatten each output point (so array-valued
+# points still reduce to a flat set of series) and stack into that orientation.
+_plot_reshape(output::AbstractVector) = output
+function _plot_reshape(output::AbstractVector{<:AbstractArray})
+    return permutedims(reduce(hcat, vec.(output)))
+end
+
 function to_plottable(A::AbstractInterpolation; plotdensity = 10_000, denseplot = true)
-  t = sort(A.t)
-  start = t[1]; stop = t[end]
-  if denseplot
-    plott = collect(range(start,stop=stop,length=plotdensity))
-  else
-    plott = t
-  end
-  output = A.(plott)
-  plott, output
+    t = sort(A.t)
+    start = t[1]
+    stop = t[end]
+    if denseplot
+        plott = collect(range(start, stop = stop, length = plotdensity))
+    else
+        plott = t
+    end
+    output = A.(plott)
+    return plott, _plot_reshape(output)
 end
 
-@recipe function f(A::AbstractInterpolation; plotdensity = 10_000, denseplot = true)
-    to_plottable(A; plotdensity = plotdensity, denseplot=denseplot)
-end
-
-################################################################################
-#                                Series recipes                                #
-################################################################################
-
-############################################################
-#                      Interpolations                      #
-############################################################
-
-########################################
-#         Linear Interpolation         #
-########################################
-
-@recipe function f(::Type{Val{:linear_interp}}, x, y, z; plotdensity = 10_000, denseplot = true)
-
-    seriestype := :path
-
-    label --> "Linear fit"
-
-    nx, ny = to_plottable(LinearInterpolation(y, x); plotdensity = plotdensity, denseplot = denseplot)
-
-    x := nx
-    y := ny
-end
-
-########################################
-#       Quadratic Interpolation        #
-########################################
-
-@recipe function f(::Type{Val{:quadratic_interp}}, x, y, z; plotdensity = 10_000, denseplot = true)
-
-    seriestype := :path
-
-    label --> "Quadratic fit"
-
-    nx, ny = to_plottable(
-        QuadraticInterpolation(
-            T.(y),
-            T.(x)
-        );
-        plotdensity = plotdensity,
-        denseplot = denseplot
+@recipe function f(
+        A::AbstractInterpolation; plotdensity = 10_000, denseplot = true,
+        label_interp = string(nameof(typeof(A))), label_data = "Data points"
     )
-    x := nx
-    y := ny
-end
-
-########################################
-#           Quadratic Spline           #
-########################################
-
-@recipe function f(::Type{Val{:quadratic_spline}}, x, y, z; plotdensity = 10_000, denseplot = true)
-
-    seriestype := :path
-
-    label --> "Quadratic Spline"
-
-    T = promote_type(eltype(y), eltype(x))
-
-    nx, ny = to_plottable(
-        QuadraticSpline(
-            T.(y),
-            T.(x)
-        );
-        plotdensity = plotdensity,
-        denseplot = denseplot
-    )
-
-    x := nx
-    y := ny
-end
-
-########################################
-#        Lagrange Interpolation        #
-########################################
-
-@recipe function f(::Type{Val{:lagrange_interp}},
-                    x, y, z;
-                    n = length(x) - 1,
-                    plotdensity = 10_000,
-                    denseplot = true
-                )
-
-    seriestype := :path
-
-    label --> "Lagrange Fit"
-
-    T = promote_type(eltype(y), eltype(x))
-
-    nx, ny = to_plottable(
-        LagrangeInterpolation(
-            T.(y),
-            T.(x),
-            n
-        );
-        plotdensity = plotdensity,
-        denseplot = denseplot
-    )
-
-    x := nx
-    y := ny
-end
-
-########################################
-#             Cubic Spline             #
-########################################
-
-@recipe function f(::Type{Val{:cubic_spline}}, x, y, z; plotdensity = 10_000, denseplot = true)
-
-    seriestype := :path
-
-    label --> "Cubic Spline"
-
-    T = promote_type(eltype(y), eltype(x))
-
-    nx, ny = to_plottable(
-        CubicSpline(
-            T.(y),
-            T.(x)
-        );
-        plotdensity = plotdensity,
-        denseplot = denseplot
-    )
-    x := nx
-    y := ny
-end
-
-
-@recipe function f(::Type{Val{:bspline_interp}},
-                x, y, z;
-                d = 5,
-                pVec=:ArcLen,
-                knotVec = :Average,
-                plotdensity = length(x) * 6,
-                denseplot = true
-            )
-
+    seriescolor = get(plotattributes, :seriescolor, :blue)
+    @series begin
         seriestype := :path
-
-        label --> "B-Spline"
-
-        @show x y eltype(x)
-
-        # T = promote_type(eltype(y), eltype(x))
-
-        nx, ny = to_plottable(
-            BSplineInterpolation(
-                T.(y),
-                T.(x),
-                d,
-                pVec,
-                knotVec
-            );
-            plotdensity = plotdensity,
-            denseplot = denseplot
-        )
-        x := nx
-        y := ny
+        seriescolor --> seriescolor
+        label --> label_interp
+        to_plottable(A; plotdensity = plotdensity, denseplot = denseplot)
+    end
+    @series begin
+        seriestype := :scatter
+        seriescolor --> seriescolor
+        label --> label_data
+        # `get_data` (from show.jl) reshapes `A.u` — whatever its native container — into
+        # the same `(npoints, ndim)` orientation Plots needs. Using it here (rather than
+        # re-evaluating `A.(A.t)`) matters for approximating types like `BSplineApprox`,
+        # whose curve doesn't pass through the raw data: re-evaluating would silently plot
+        # the smoothed curve's values as if they were the data points.
+        A.t, get_data(A.u)
+    end
 end
-
-########################################
-#       B-spline (approximation)       #
-########################################
-
-@recipe function f(::Type{Val{:bspline_approx}},
-                    x, y, z;
-                    d = 5,
-                    h = length(x) - 1,
-                    pVec = :ArcLen,
-                    knotVec = :Average,
-                    plotdensity = length(x) * 6,
-                    denseplot = true
-                )
-
-        seriestype := :path
-
-        label --> "B-Spline"
-
-        T = promote_type(eltype(y), eltype(x))
-
-        nx, ny = to_plottable(
-            BSplineApprox(
-                T.(y),
-                T.(x),
-                d,
-                h,
-                pVec,
-                knotVec
-            );
-            plotdensity = plotdensity,
-            denseplot = denseplot
-        )
-        x := nx
-        y := ny
-end
-
-########################################
-#          Akima intepolation          #
-########################################
-
-@recipe function f(::Type{Val{:akima}}, x, y, z; plotdensity = length(x) * 6, denseplot = true)
-
-        seriestype := :path
-
-        label --> "Akima"
-
-        T = promote_type(eltype(y), eltype(x))
-
-        nx, ny = to_plottable(
-            AkimaInterpolation(
-                T.(y),
-                T.(x)
-            );
-            plotdensity = plotdensity,
-            denseplot = denseplot
-        )
-        x := nx
-        y := ny
-end
-
-
-################################################################################
-#                                  Shorthands                                  #
-################################################################################
-
-"""
-    akima(u, t)
-    akima!(u, t)
-
-Plot the Akima interpolation of the given data.
-"""
-@shorthands akima

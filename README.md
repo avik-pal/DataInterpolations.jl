@@ -1,23 +1,20 @@
 # DataInterpolations.jl
 
-[![CI](https://github.com/PumasAI/DataInterpolations.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PumasAI/DataInterpolations.jl/actions/workflows/CI.yml)
-[![codecov](https://codecov.io/gh/PumasAI/DataInterpolations.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/PumasAI/DataInterpolations.jl)
+[![Join the chat at https://julialang.zulipchat.com #sciml-bridged](https://img.shields.io/static/v1?label=Zulip&message=chat&color=9558b2&labelColor=389826)](https://julialang.zulipchat.com/#narrow/stream/279055-sciml-bridged)
+[![Global Docs](https://img.shields.io/badge/docs-SciML-blue.svg)](https://docs.sciml.ai/DataInterpolations/stable/)
+
+[![codecov](https://codecov.io/gh/SciML/DataInterpolations.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/SciML/DataInterpolations.jl)
+[![CI](https://github.com/SciML/DataInterpolations.jl/actions/workflows/Tests.yml/badge.svg?branch=master)](https://github.com/SciML/DataInterpolations.jl/actions/workflows/Tests.yml)
+
+[![ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://img.shields.io/badge/ColPrac-Contributor%27s%20Guide-blueviolet)](https://github.com/SciML/ColPrac)
+[![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.06917/status.svg)](https://doi.org/10.21105/joss.06917)
 
 DataInterpolations.jl is a library for performing interpolations of one-dimensional data. By
 "data interpolations" we mean techniques for interpolating possibly noisy data, and thus
 some methods are mixtures of regressions with interpolations (i.e. do not hit the data
 points exactly, smoothing out the lines). This library can be used to fill in intermediate
 data points in applications like timeseries data.
-
-## Tutorial / Demonstration
-
-A tutorial is included and can be found at [this page](https://htmlpreview.github.io/?https://github.com/PumasAI/DataInterpolations.jl/blob/v2.0.0/example/DataInterpolations.html). To run the tutorial yourself
-locally, use the following Weave commands:
-
-```julia
-using Weave, DataInterpolations
-weave(joinpath(dirname(pathof(DataInterpolations)), "../Example", "DataInterpolations.jmd"), out_path=:doc)
-```
 
 ## API
 
@@ -26,54 +23,104 @@ All interpolation objects act as functions. Thus for example, using an interpola
 ```julia
 u = rand(5)
 t = 0:4
-interp = LinearInterpolation(u,t)
+interp = LinearInterpolation(u, t)
 interp(3.5) # Gives the linear interpolation value at t=3.5
 ```
 
-The indexing retreives the underlying values:
+We can efficiently interpolate onto a vector of new `t` values:
 
 ```julia
-interp[4] # Gives the 4th value of u
+t′ = 0.5:1.0:3.5
+interp(t′)
+```
+
+In-place interpolation also works:
+
+```julia
+u′ = similar(u, length(t′))
+interp(u′, t′)
 ```
 
 ## Available Interpolations
 
-In all cases, `u` an `AbstractVector` of values and `t` is an `AbstractVector` of timepoints
+In all cases, `u` is an `AbstractVector` of values and `t` is an `AbstractVector` of timepoints
 corresponding to `(u,t)` pairs.
 
-- `ConstantInterpolation(u,t)` - A piecewise constant interpolation.
+  - `ConstantInterpolation(u,t)` - A piecewise constant interpolation.
 
-- `LinearInterpolation(u,t)` - A linear interpolation.
+  - `SmoothedConstantInterpolation(u,t)` - An integral preserving continuously differentiable approximation of constant interpolation.
+  - `LinearInterpolation(u,t)` - A linear interpolation.
+  - `QuadraticInterpolation(u,t)` - A quadratic interpolation.
+  - `LagrangeInterpolation(u,t,n)` - A Lagrange interpolation of order `n`.
+  - `QuadraticSpline(u,t)` - A quadratic spline interpolation.
+  - `CubicSpline(u,t)` - A cubic spline interpolation.
+  - `AkimaInterpolation(u, t)` - Akima spline interpolation provides a smoothing effect and is computationally efficient.
+  - `BSplineInterpolation(u,t,d,knotVec)` - An interpolation B-spline. This is a B-spline which hits each of the data points. The argument choices are:
+    
+      + `d` - degree of B-spline
+      + `knotVec` - Symbol to Knot Vector, `knotVec = :Uniform` for uniform knot vector, `knotVec = :Average` for average spaced knot vector.
+  - `BSplineApprox(u,t,d,h,knotVec)` - A regression B-spline which smooths the fitting curve. The argument choices are the same as the `BSplineInterpolation`, with the additional parameter `h<length(t)` which is the number of control points to use, with smaller `h` indicating more smoothing.
+  - `CubicHermiteSpline(du, u, t)` - A third order Hermite interpolation, which matches the values and first (`du`) order derivatives in the data points exactly.
+  - `PCHIPInterpolation(u, t)` - a type of `CubicHermiteSpline` where the derivative values `du` are derived from the input data in such a way that the interpolation never overshoots the data.
+  - `QuinticHermiteSpline(ddu, du, u, t)` - A fifth order Hermite interpolation, which matches the values and first (`du`) and second (`ddu`) order derivatives in the data points exactly.
+  - `SmoothArcLengthInterpolation(u)` - A C¹ smooth, unit-speed (arc-length parameterized) interpolation through `u` given in matrix form `(ndim, ndata)`, approximated with line and circle segments. Unlike the methods above, `t` is derived from `u` (the cumulative arc length) rather than supplied by the user.
 
-- `QuadraticInterpolation(u,t)` - A quadratic interpolation.
+## Feature Support
 
-- `LagrangeInterpolation(u,t,n)` - A Lagrange interpolation of order `n`.
+Every interpolation method above accepts `u` as a plain `Vector`, a `Matrix` (`ndim × ndata`), or a `Vector` of equal-length `Vector`s — and `derivative`/`integral` work for all three, with two exceptions:
 
-- `QuadraticSpline(u,t)` - A quadratic spline interpolation.
+| | `Vector` | `Matrix` | `Vector{Vector}` |
+|---|:---:|:---:|:---:|
+| Interpolation | ✓ | ✓ | ✓ |
+| Derivative | ✓ | ✓ | ✓ |
+| Integral | ✓ | ✓ | ✓ |
 
-- `CubicSpline(u,t)` - A cubic spline interpolation.
+  - `LagrangeInterpolation` has no closed-form antiderivative for an arbitrary-order polynomial, so `integral` throws `IntegralNotFoundError` regardless of `u`'s shape. Use a numerical integrator such as [Integrals.jl](https://docs.sciml.ai/Integrals/stable/) instead.
+  - `SmoothArcLengthInterpolation` only accepts `Matrix` or `Vector{Vector}` — plain `Vector` is mathematically degenerate for it (rounding a corner with a circular arc requires at least 2 dimensions).
 
-- `BSplineInterpolation(u,t,d,pVec,knotVec)` - An interpolation B-spline. This is a B-spline which hits each of the data points. The argument choices are:
-  	- `d` - degree of B-spline  
-  	- `pVec` - Symbol to Parameters Vector, `pVec = :Uniform` for uniform spaced parameters and `knotVec = :ArcLen` for parameters generated by chord length method.  
-  	- `knotVec` - Symbol to Knot Vector, `knotVec = :Uniform` for uniform knot vector, `knotVec = :Average` for average spaced knot vector.
+### Automatic Differentiation
 
-- `BSplineApprox(u,t,d,h,pVec,knotVec)` - A regression B-spline which smooths the fitting curve. The argument choices are the same as the `BSplineInterpolation`, with the additional parameter `h<length(t)` which is the number of control points to use, with smaller `h` indicating more smoothing.
+| | w.r.t. `t` (evaluation) | w.r.t. `u` (through construction) |
+|---|:---:|:---:|
+| ForwardDiff | ✓ | ✓¹ |
+| Zygote | ✓ | ✓, except `LagrangeInterpolation`, `BSplineInterpolation`, `BSplineApprox`, `QuadraticSpline`, `AkimaInterpolation`, `SmoothArcLengthInterpolation`² |
+| Mooncake | ✓ | ✓, except `AkimaInterpolation`¹, `SmoothArcLengthInterpolation`³ |
 
-- `Curvefit(u,t,m,p,alg)` - An interpolation which is done by fitting a user-given functional form `m(t,p)` where `p` is the vector of parameters. The user's input `p` is a an initial value for a least-square fitting, `alg` is the algorithm choice to use for optimize the cost function (sum of squared deviations) via `Optim.jl` and optimal `p`s are used in the interpolation.
+  1. `AkimaInterpolation`'s slope formula uses `abs()`, which is non-differentiable at specific data configurations (a kink, not an AD-engine limitation) and can return `NaN`.
+  2. These constructors fit coefficients via mutating loops/linear solves, which Zygote's reverse-mode AD cannot trace through ("Mutating arrays is not supported"); Mooncake handles all of them except `SmoothArcLengthInterpolation`.
+  3. `SmoothArcLengthInterpolation`'s circle/line-fitting constructor produces `Vector{Vector}`-shaped intermediates that Mooncake's tangent machinery doesn't yet have a rule for.
+
+### Symbolic construction (Symbolics.jl)
+
+Building an interpolation directly from a symbolic `u` (e.g. `@variables u[1:n]`) works for every method except `SmoothArcLengthInterpolation`¹. See the [Symbolics.jl docs page](https://docs.sciml.ai/DataInterpolations/stable/symbolics/) for details. This is separate from evaluating an already-built interpolation at a symbolic *time* argument (`A(τ)`), which all methods support.
+
+  1. Its constructor does real computational geometry (fitting circle/line segments, detecting intersections) that branches on the concrete shape of the data — this can't be resolved for unassigned symbolic values.
+
+## Extension Methods
+
+The following methods require extra dependencies and will be loaded as package extensions.
+
+  - `Curvefit(u,t,m,p,alg)` - An interpolation which is done by fitting a user-given functional form `m(t,p)` where `p` is the vector of parameters. The user's input `p` is a an initial value for a least-square fitting, `alg` is the algorithm choice to use for optimize the cost function (sum of squared deviations) via `Optim.jl` and optimal `p`s are used in the interpolation. Requires `using Optim`.
 
 ## Plotting
 
-DataInterpolations.jl is tied into the Plots.jl ecosystem, by way of RecipesBase.  
-Any interpolation can be plotted using the `plot` command (or any other), since they have type recipes associated with them.
+DataInterpolations.jl is tied into the Plots.jl ecosystem, by way of RecipesBase. Any interpolation can be plotted using the `plot` command (or any other), since they have type recipes associated with them. For convenience, and to allow keyword arguments to propagate properly, DataInterpolations.jl also defines several series types, corresponding to different interpolations.
 
-For convenience, and to allow keyword arguments to propagate properly, DataInterpolations.jl also defines several series types, corresponding to different interpolations.
+## Citing
 
-The series types defined are:
-- `:linear_interp`
-- `:quadratic_interp`
-- `:lagrange_interp`
-- `:quadratic_spline`
-- `:cubic_spline`
+If you use this software in your work, please cite:
 
-By and large, these accept the same keywords as their function counterparts.
+```bib
+@article{Bhagavan2024,
+  doi = {10.21105/joss.06917},
+  url = {https://doi.org/10.21105/joss.06917},
+  year = {2024},
+  publisher = {The Open Journal},
+  volume = {9},
+  number = {101},
+  pages = {6917},
+  author = {Sathvik Bhagavan and Bart de Koning and Shubham Maddhashiya and Christopher Rackauckas},
+  title = {DataInterpolations.jl: Fast Interpolations of 1D data},
+  journal = {Journal of Open Source Software}
+}
+```

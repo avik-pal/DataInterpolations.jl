@@ -1,0 +1,139 @@
+# DataInterpolations.jl
+
+DataInterpolations.jl is a library for performing interpolations of one-dimensional data. Interpolations are a very important component of many modeling workflows. Often, sampled or measured inputs need to be transformed into continuous functions or smooth curves for simulation purposes. In many scientific machine learning workflows, interpolating data is essential to learn continuous models. DataInterpolations.jl can be used for facilitating these types of workflows. By "data interpolations" we mean techniques for interpolating possibly noisy data, and thus some methods are mixtures of regressions with interpolations (i.e. do not hit the data points exactly, smoothing out the lines).
+
+## Installation
+
+To install DataInterpolations.jl, use the Julia package manager:
+
+```julia
+using Pkg
+Pkg.add("DataInterpolations")
+```
+
+## Available Interpolations
+
+In all cases, `u` is an `AbstractVector` of values and `t` is an `AbstractVector` of timepoints
+corresponding to `(u,t)` pairs.
+
+  - `ConstantInterpolation(u,t)` - A piecewise constant interpolation.
+
+  - `SmoothedConstantInterpolation(u,t)` - An integral preserving continuously differentiable approximation of constant interpolation.
+  - `LinearInterpolation(u,t)` - A linear interpolation.
+  - `QuadraticInterpolation(u,t)` - A quadratic interpolation.
+  - `LagrangeInterpolation(u,t,n)` - A Lagrange interpolation of order `n`.
+  - `QuadraticSpline(u,t)` - A quadratic spline interpolation.
+  - `CubicSpline(u,t)` - A cubic spline interpolation.
+  - `AkimaInterpolation(u, t)` - Akima spline interpolation provides a smoothing effect and is computationally efficient.
+  - `BSplineInterpolation(u,t,d,knotVec)` - An interpolation B-spline. This is a B-spline that hits each of the data points. The argument choices are:
+    
+      + `d` - degree of B-spline
+      + `knotVec` - Symbol to Knot Vector, `knotVec = :Uniform` for uniform knot vector, `knotVec = :Average` for average spaced knot vector. Use `:Average` for interpolation: `:Uniform` spaces the interior knots inconsistently with the data sites, which makes the collocation system exponentially ill-conditioned in the number of data points for `d >= 3`, and constructing one warns.
+  - `BSplineApprox(u,t,d,h,knotVec)` - A regression B-spline which smooths the fitting curve. The argument choices are the same as the `BSplineInterpolation`, with the additional parameter `h<length(t)` which is the number of control points to use, with smaller `h` indicating more smoothing.
+  - `CubicHermiteSpline(du, u, t)` - A third order Hermite interpolation, which matches the values and first (`du`) order derivatives in the data points exactly.
+  - `PCHIPInterpolation(u, t)` - a type of `CubicHermiteSpline` where the derivative values `du` are derived from the input data in such a way that the interpolation never overshoots the data.
+  - `QuinticHermiteSpline(ddu, du, u, t)` - a fifth order Hermite interpolation, which matches the values and first (`du`) and second (`ddu`) order derivatives in the data points exactly.
+  - `SmoothArcLengthInterpolation(u)` - A C¹ smooth, unit-speed (arc-length parameterized) interpolation through `u` given in matrix form `(ndim, ndata)`, approximated with line and circle segments. Unlike the methods above, `t` is derived from `u` rather than supplied by the user. See [Smooth arc length interpolation](arclength_interpolation.md) for details.
+
+## Extension Methods
+
+The following methods require extra dependencies and will be loaded as package extensions.
+
+  - `Curvefit(u,t,m,p,alg)` - An interpolation which is done by fitting a user-given functional form `m(t,p)` where `p` is the vector of parameters. The user's input `p` is an initial value for a least-squares fitting, `alg` is the algorithm choice to use to optimize the cost function (sum of squared deviations) via `Optim.jl` and optimal `p`s are used in the interpolation. Requires `using Optim`.
+
+## Plotting
+
+DataInterpolations.jl is tied into the Plots.jl ecosystem, by way of RecipesBase. Any interpolation can be plotted using the `plot` command (or any other), since they have type recipes associated with them.
+
+## Citing
+
+If you use this software in your work, please cite:
+
+```bib
+@article{Bhagavan2024,
+  doi = {10.21105/joss.06917},
+  url = {https://doi.org/10.21105/joss.06917},
+  year = {2024},
+  publisher = {The Open Journal},
+  volume = {9},
+  number = {101},
+  pages = {6917},
+  author = {Sathvik Bhagavan and Bart de Koning and Shubham Maddhashiya and Christopher Rackauckas},
+  title = {DataInterpolations.jl: Fast Interpolations of 1D data},
+  journal = {Journal of Open Source Software}
+}
+```
+
+## Contributing
+
+  - Please refer to the
+    [SciML ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://github.com/SciML/ColPrac/blob/master/README.md)
+    for guidance on PRs, issues, and other matters relating to contributing to SciML.
+
+  - See the [SciML Style Guide](https://github.com/SciML/SciMLStyle) for common coding practices and other style decisions.
+  - There are a few community forums:
+    
+      + The #diffeq-bridged and #sciml-bridged channels in the
+        [Julia Slack](https://julialang.org/slack/)
+      + The #diffeq-bridged and #sciml-bridged channels in the
+        [Julia Zulip](https://julialang.zulipchat.com/#narrow/stream/279055-sciml-bridged)
+      + On the [Julia Discourse forums](https://discourse.julialang.org)
+      + See also [SciML Community page](https://sciml.ai/community/)
+
+## Reproducibility
+
+```@raw html
+<details><summary>The documentation of this SciML package was built using these direct dependencies,</summary>
+```
+
+```@example
+using Pkg # hide
+Pkg.status() # hide
+```
+
+```@raw html
+</details>
+```
+
+```@raw html
+<details><summary>and using this machine and Julia version.</summary>
+```
+
+```@example
+using InteractiveUtils # hide
+versioninfo() # hide
+```
+
+```@raw html
+</details>
+```
+
+```@raw html
+<details><summary>A more complete overview of all dependencies and their versions is also provided.</summary>
+```
+
+```@example
+using Pkg # hide
+Pkg.status(; mode = PKGMODE_MANIFEST) # hide
+```
+
+```@raw html
+</details>
+```
+
+```@eval
+using TOML
+using Markdown
+version = TOML.parse(read("../../Project.toml", String))["version"]
+name = TOML.parse(read("../../Project.toml", String))["name"]
+link_manifest = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+                "/assets/Manifest.toml"
+link_project = "https://github.com/SciML/" * name * ".jl/tree/gh-pages/v" * version *
+               "/assets/Project.toml"
+Markdown.parse("""You can also download the
+[manifest]($link_manifest)
+file and the
+[project]($link_project)
+file.
+""")
+```
